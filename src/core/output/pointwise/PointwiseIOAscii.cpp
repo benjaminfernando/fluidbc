@@ -1,23 +1,23 @@
 // PointwiseIOAscii.cpp
-// created by Kuangdai on 1-Jun-2017 
+// created by Kuangdai on 1-Jun-2017
 // ascii IO for point-wise receivers
 
 #include "PointwiseIOAscii.h"
 #include "Parameters.h"
 #include "PointwiseRecorder.h"
 
-void PointwiseIOAscii::initialize(int totalRecordSteps, int bufferSize, 
+void PointwiseIOAscii::initialize(int totalRecordSteps, int bufferSize,
     const std::string &components, const std::vector<PointwiseInfo> &receivers,
     double srcLat, double srcLon, double srcDep) {
     // number
     int numRec = receivers.size();
-    mFileNamesDisp.clear();    
+    mFileNamesDisp.clear();
     mFilesDisp.clear();
-    mBufferDisp = RMatXX::Zero(bufferSize, 4);
-    mFileNamesStrain.clear();    
+    mBufferDisp = RDMatXX::Zero(bufferSize, 4);
+    mFileNamesStrain.clear();
     mFilesStrain.clear();
-    mBufferStrain = RMatXX::Zero(bufferSize, 7);
-    
+    mBufferStrain = RDMatXX::Zero(bufferSize, 7);
+
     // files
     std::string outdir = Parameters::sOutputDirectory + "/stations/";
     for (int irec = 0; irec < numRec; irec++) {
@@ -31,7 +31,7 @@ void PointwiseIOAscii::initialize(int totalRecordSteps, int bufferSize,
         }
         mFileNamesDisp.push_back(fname_disp);
         mFilesDisp.push_back(fs_disp);
-        
+
         // strain
         if (receivers[irec].mDumpStrain) {
             std::string fname_strain = fname_base + "." + "RTZ" + ".strain.ascii";
@@ -61,32 +61,31 @@ void PointwiseIOAscii::finalize() {
 }
 
 void PointwiseIOAscii::dumpToFile(const RMatXX_RM &bufferDisp, const RMatXX_RM &bufferStrain,
-    const RColX &bufferTime, int bufferLine) {
+    const RDColX &bufferTime, int bufferLine) {
     if (bufferLine == 0) {
         return;
     }
-    
+
     #ifndef NDEBUG
         Eigen::internal::set_is_malloc_allowed(true);
     #endif
-    
+
     int numRec = mFileNamesDisp.size();
     for (int irec = 0; irec < numRec; irec++) {
-        mBufferDisp.topRows(bufferLine) << bufferTime.topRows(bufferLine), 
-                                       bufferDisp.block(0, irec * 3, bufferLine, 3);
-        (*mFilesDisp[irec]) << mBufferDisp.topRows(bufferLine).format(EIGEN_FMT) << std::endl;   
+        mBufferDisp.topRows(bufferLine) << bufferTime.topRows(bufferLine),
+                                       bufferDisp.block(0, irec * 3, bufferLine, 3).cast<double>();
+        (*mFilesDisp[irec]) << mBufferDisp.topRows(bufferLine).format(EIGEN_FMT) << std::endl;
         mFilesDisp[irec]->flush();
     }
-    
+
     int numStrainRec = mFileNamesStrain.size();
     for (int irec = 0; irec < numStrainRec; irec++) {
-        mBufferStrain.topRows(bufferLine) << bufferTime.topRows(bufferLine), 
-                                       bufferStrain.block(0, irec * 6, bufferLine, 6);
-        (*mFilesStrain[irec]) << mBufferStrain.topRows(bufferLine).format(EIGEN_FMT) << std::endl;   
+        mBufferStrain.topRows(bufferLine) << bufferTime.topRows(bufferLine),
+                                       bufferStrain.block(0, irec * 6, bufferLine, 6).cast<double>();
+        (*mFilesStrain[irec]) << mBufferStrain.topRows(bufferLine).format(EIGEN_FMT) << std::endl;
         mFilesStrain[irec]->flush();
     }
     #ifndef NDEBUG
         Eigen::internal::set_is_malloc_allowed(false);
     #endif
 }
-

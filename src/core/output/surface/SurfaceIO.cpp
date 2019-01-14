@@ -1,5 +1,5 @@
 // SurfaceIO.cpp
-// created by Kuangdai on 28-Nov-2017 
+// created by Kuangdai on 28-Nov-2017
 // NetCDF IO for surface wavefield
 
 #include "SurfaceIO.h"
@@ -39,7 +39,7 @@ void SurfaceIO::initialize(int totalRecordSteps, int bufferSize,
         // no element at all
         return;
     }
-    
+
     // nc variable names
     mVarNames.resize(numEle);
     mNu.resize(numEle);
@@ -49,7 +49,7 @@ void SurfaceIO::initialize(int totalRecordSteps, int bufferSize,
         mVarNames[iele] = ss.str();
         mNu[iele] = surfaceInfo[iele].getMaxNu();
     }
-    
+
     // theta
     int numEleGlob = XMPI::sum(numEle);
     RDMatXX_RM theta = RDMatXX::Zero(numEleGlob, 2);
@@ -70,7 +70,7 @@ void SurfaceIO::initialize(int totalRecordSteps, int bufferSize,
     dimsTheta.push_back(numEleGlob);
     dimsTheta.push_back(2);
     dimsGLL.push_back(nPntEdge);
-    
+
     // file
     mNetCDF = new NetCDF_Writer();
     #ifndef _USE_PARALLEL_NETCDF
@@ -83,7 +83,7 @@ void SurfaceIO::initialize(int totalRecordSteps, int bufferSize,
         mNetCDF->open(fname.str(), true);
         mNetCDF->defModeOn();
         // define time
-        mNetCDF->defineVariable<Real>("time_points", dimsTime);
+        mNetCDF->defineVariable<double>("time_points", dimsTime);
         // define seismograms
         for (int iele = 0; iele < numEle; iele++) {
             dimsSeis[1] = nPntEdge * 3 * (mNu[iele] + 1);
@@ -97,7 +97,7 @@ void SurfaceIO::initialize(int totalRecordSteps, int bufferSize,
         mNetCDF->defineVariable<double>("GLJ", dimsGLL);
         mNetCDF->defModeOff();
         // fill time with err values
-        mNetCDF->fillConstant("time_points", dimsTime, (Real)NC_ERR_VALUE);
+        mNetCDF->fillConstant("time_points", dimsTime, (double)NC_ERR_VALUE);
         // fill seismograms with err values
         for (int iele = 0; iele < numEle; iele++) {
             dimsSeis[1] = nPntEdge * 3 * (mNu[iele] + 1);
@@ -119,19 +119,19 @@ void SurfaceIO::initialize(int totalRecordSteps, int bufferSize,
         mNetCDF->addAttribute("", "radius", Geodesy::getROuter());
         mNetCDF->flush();
     #else
-        // gather all variable names 
+        // gather all variable names
         std::vector<std::vector<std::string>> allNames;
-        std::vector<std::vector<int>> allNus; 
+        std::vector<std::vector<int>> allNus;
         XMPI::gather(mVarNames, allNames, true);
         XMPI::gather(mNu, allNus, MPI_INT, true);
-        
+
         // open file on min rank and define all variables
         std::string fname = Parameters::sOutputDirectory + "/stations/axisem3d_surface.nc";
         if (XMPI::rank() == mMinRankWithEle) {
             mNetCDF->open(fname, true);
             mNetCDF->defModeOn();
             // define time
-            mNetCDF->defineVariable<Real>("time_points", dimsTime);
+            mNetCDF->defineVariable<double>("time_points", dimsTime);
             // define seismograms
             for (int iproc = 0; iproc < XMPI::nproc(); iproc++) {
                 for (int iele = 0; iele < allNames[iproc].size(); iele++) {
@@ -147,7 +147,7 @@ void SurfaceIO::initialize(int totalRecordSteps, int bufferSize,
             mNetCDF->defineVariable<double>("GLJ", dimsGLL);
             mNetCDF->defModeOff();
             // fill time with err values
-            mNetCDF->fillConstant("time_points", dimsTime, (Real)NC_ERR_VALUE);
+            mNetCDF->fillConstant("time_points", dimsTime, (double)NC_ERR_VALUE);
             // fill seismograms with err values
             for (int iproc = 0; iproc < XMPI::nproc(); iproc++) {
                 for (int iele = 0; iele < allNames[iproc].size(); iele++) {
@@ -174,7 +174,7 @@ void SurfaceIO::initialize(int totalRecordSteps, int bufferSize,
         XMPI::barrier();
         mNetCDF->openParallel(fname);
     #endif
-    
+
     // record postion in nc file
     mCurrentRow = 0;
 }
@@ -184,27 +184,27 @@ void SurfaceIO::finalize() {
         // no receiver at all
         return;
     }
-    
+
     // dispose writer
     mNetCDF->close();
     delete mNetCDF;
-    
+
     #ifdef _USE_PARALLEL_NETCDF
         return;
     #endif
-    
+
     // file name
     int numEle = mVarNames.size();
     std::string oneFile = Parameters::sOutputDirectory + "/stations/axisem3d_surface.nc";
     std::stringstream fname;
     fname << Parameters::sOutputDirectory + "/stations/axisem3d_surface.nc.rank" << XMPI::rank();
     std::string locFile = fname.str();
-    
+
     // merge
     #ifndef NDEBUG
         Eigen::internal::set_is_malloc_allowed(true);
     #endif
-    
+
     // dims
     std::vector<size_t> dimsTime;
     std::vector<size_t> dimsSeis;
@@ -213,29 +213,29 @@ void SurfaceIO::finalize() {
     dimsSeis.push_back(mCurrentRow);
     dimsSeis.push_back(0);
     dimsGLL.push_back(nPntEdge);
-    
-    // create file 
+
+    // create file
     if (XMPI::rank() == mMinRankWithEle) {
         // read time
         NetCDF_Reader nr;
         nr.open(locFile);
-        RColX times;
+        RDColX times;
         nr.read1D("time_points", times);
-        
+
         // read theta
         RDMatXX_RM theta;
         nr.read2D("theta", theta);
-        
+
         std::vector<size_t> dimsTheta;
         dimsTheta.push_back(theta.rows());
         dimsTheta.push_back(2);
         nr.close();
-    
+
         // create file and write time
         NetCDF_Writer nw;
         nw.open(oneFile, true);
         nw.defModeOn();
-        nw.defineVariable<Real>("time_points", dimsTime);
+        nw.defineVariable<double>("time_points", dimsTime);
         nw.defineVariable<double>("theta", dimsTheta);
         nw.defineVariable<double>("GLL", dimsGLL);
         nw.defineVariable<double>("GLJ", dimsGLL);
@@ -256,7 +256,7 @@ void SurfaceIO::finalize() {
         nw.close();
     }
     XMPI::barrier();
-    
+
     // write seismograms
     for (int iproc = 0; iproc < XMPI::nproc(); iproc++) {
         if (iproc == XMPI::rank() && numEle > 0) {
@@ -265,7 +265,7 @@ void SurfaceIO::finalize() {
             nr.open(locFile);
             NetCDF_Writer nw;
             nw.open(oneFile, false);
-    
+
             // create variable
             nw.defModeOn();
             for (int iele = 0; iele < numEle; iele++) {
@@ -274,7 +274,7 @@ void SurfaceIO::finalize() {
                 nw.defineVariable<Real>(mVarNames[iele] + "i", dimsSeis);
             }
             nw.defModeOff();
-    
+
             // read and write seismograms
             for (int iele = 0; iele < numEle; iele++) {
                 RMatXX_RM seis_r;
@@ -284,53 +284,53 @@ void SurfaceIO::finalize() {
                 nw.writeVariableWhole(mVarNames[iele] + "r", seis_r);
                 nw.writeVariableWhole(mVarNames[iele] + "i", seis_i);
             }
-    
+
             // close
             nw.close();
             nr.close();
         }
         XMPI::barrier();
-    } 
-    
+    }
+
     // delete local files
     if (numEle > 0) {
         std::remove(locFile.c_str());
     }
-    
+
     #ifndef NDEBUG
         Eigen::internal::set_is_malloc_allowed(false);
     #endif
 }
 
-void SurfaceIO::dumpToFile(const std::vector<CMatXX_RM> &bufferDisp, 
-    const RColX &bufferTime, int bufferLine) {
+void SurfaceIO::dumpToFile(const std::vector<CMatXX_RM> &bufferDisp,
+    const RDColX &bufferTime, int bufferLine) {
     int numEle = mVarNames.size();
     if (bufferLine == 0) {
         return;
     }
-    
+
     // write time
     std::vector<size_t> start;
     std::vector<size_t> count;
     start.push_back(mCurrentRow);
     count.push_back(bufferLine);
-    
+
     // record postion in nc file
     mCurrentRow += bufferLine;
-    
+
     #ifndef _USE_PARALLEL_NETCDF
         if (numEle == 0) {
             return;
-        }  
-        mNetCDF->writeVariableChunk("time_points", 
+        }
+        mNetCDF->writeVariableChunk("time_points",
             bufferTime.topRows(bufferLine), start, count);
     #else
         if (XMPI::rank() == mMinRankWithEle) {
-            mNetCDF->writeVariableChunk("time_points", 
+            mNetCDF->writeVariableChunk("time_points",
                 bufferTime.topRows(bufferLine), start, count);
         }
     #endif
-    
+
     // write seismograms
     #ifndef NDEBUG
         Eigen::internal::set_is_malloc_allowed(true);
@@ -338,7 +338,7 @@ void SurfaceIO::dumpToFile(const std::vector<CMatXX_RM> &bufferDisp,
     start.push_back(0);
     count.push_back(0);
     for (int iele = 0; iele < numEle; iele++) {
-        count[1] = nPntEdge * 3 * (mNu[iele] + 1); 
+        count[1] = nPntEdge * 3 * (mNu[iele] + 1);
         RMatXX_RM seis_r = bufferDisp[iele].block(0, 0, bufferLine, count[1]).real();
         RMatXX_RM seis_i = bufferDisp[iele].block(0, 0, bufferLine, count[1]).imag();
         mNetCDF->writeVariableChunk(mVarNames[iele] + "r", seis_r, start, count);
@@ -347,8 +347,7 @@ void SurfaceIO::dumpToFile(const std::vector<CMatXX_RM> &bufferDisp,
     #ifndef NDEBUG
         Eigen::internal::set_is_malloc_allowed(false);
     #endif
-    
+
     // flush to disk
     mNetCDF->flush();
 }
-

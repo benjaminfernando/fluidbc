@@ -15,7 +15,9 @@ public:
     ~FluidPoint();
 
     // update in time domain by Newmark
-    void updateNewmark(Real dt);
+    void updateNewmark(double dt);
+
+    void addToStiff(const CMatX3 &source);
 
     // check stability
     bool stable() const {return mDispl.allFinite();};

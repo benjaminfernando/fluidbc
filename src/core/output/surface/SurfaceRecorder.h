@@ -1,5 +1,5 @@
 // SurfaceRecorder.h
-// created by Kuangdai on 27-Nov-2017 
+// created by Kuangdai on 27-Nov-2017
 // recorder for surface wavefield
 
 #pragma once
@@ -26,7 +26,7 @@ public:
     void finalize();
 
     // record at a time step
-    void record(int tstep, Real t);
+    void record(int tstep, double t);
 
     // dump to netcdf
     void dumpToFile();
@@ -34,7 +34,7 @@ public:
 private:
     // surface elements
     std::vector<SurfaceInfo> mSurfaceInfo;
-    
+
     // interval
     int mTotalRecordSteps;
     int mRecordInterval;
@@ -42,16 +42,14 @@ private:
     // buffer
     int mBufferSize;
     int mBufferLine;
-    
+
     // buffer
-    RColX mBufferTime;
+    RDColX mBufferTime;
     std::vector<CMatXX_RM> mBufferDisp;
-    
+
     // IO
     SurfaceIO *mIO;
-    
+
     // source location
     double mSrcLat, mSrcLon, mSrcDep;
 };
-
-

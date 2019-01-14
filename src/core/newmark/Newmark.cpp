@@ -1,5 +1,5 @@
 // Newmark.cpp
-// created by Kuangdai on 8-Apr-2016 
+// created by Kuangdai on 8-Apr-2016
 // Newmark time scheme
 
 #include "Newmark.h"
@@ -10,7 +10,7 @@
 #include "MultilevelTimer.h"
 
 Newmark::Newmark(Domain *&domain, int reportInterval, int checkStabInterval, bool randomDispl):
-mDomain(domain), mReportInterval(reportInterval), 
+mDomain(domain), mReportInterval(reportInterval),
 mCheckStabInterval(checkStabInterval), mRandomDispl(randomDispl) {
     if (mReportInterval <= 0) mReportInterval = 100;
     if (mCheckStabInterval <= 0) mCheckStabInterval = mReportInterval;
@@ -23,9 +23,9 @@ void Newmark::solve(int verbose) const {
         XMPI::cout << "TTTTTTTTTT  NEWMARK TIME LOOP STARTS  TTTTTTTTTT" << XMPI::endl;
         XMPI::cout << "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT" << XMPI::endl << XMPI::endl;
     }
-    
-    Real t = zero - mDomain->getSTF().getShift();
-    Real dt = mDomain->getSTF().getDeltaT();
+
+    double t = zero - mDomain->getSTF().getShift();
+    double dt = mDomain->getSTF().getDeltaT();
     int maxStep = mDomain->getSTF().getSize();
     mDomain->resetZero();
     if (mRandomDispl) {
@@ -35,34 +35,34 @@ void Newmark::solve(int verbose) const {
     double elapsed_last = 0.;
     MyBoostTimer timer;
     timer.start();
-    
+
     ////////////////////////// loop //////////////////////////
     for (int tstep = 1; tstep <= maxStep; tstep++) {
         // update to next step
         mDomain->updateNewmark(dt);
-        
+
         // source
         mDomain->applySource(tstep - 1);
-        
+
         // element stiffness
         mDomain->computeStiff();
-        
+
         // solid-fluid coupling
         mDomain->coupleSolidFluid();
-        
-        // assemble phase 1: feed + send + recv 
+
+        // assemble phase 1: feed + send + recv
         mDomain->assembleStiff(-1);
-        
+
         // record seismograms
-        mDomain->record(tstep - 1, t);    
+        mDomain->record(tstep - 1, t);
         t += dt;
-        
+
         // check stability
         if (tstep % mCheckStabInterval == 0) {
             mDomain->checkStability(dt, tstep, t);
         }
-        
-        // screen info    
+
+        // screen info
         if (tstep % mReportInterval == 0 && verbose) {
             double elapsed = timer.elapsed() * sec2h;
             double speed = (elapsed - elapsed_last) / mReportInterval;
@@ -73,15 +73,15 @@ void Newmark::solve(int verbose) const {
             int percent = (int)(100. * tstep / maxStep);
             ss << "  SIMULATION TIME / sec     =   " << t << XMPI::endl;
             ss << "  TIME STEP / TOTAL STEPS   =   " << tstep << " / " <<  maxStep << " (" << percent << "%)" << XMPI::endl;
-            ss << "  WALLTIME ELAPSED  / h     =   " << elapsed << XMPI::endl; 
-            ss << "  WALLTIME REMAINED / h     =   " << left << XMPI::endl; 
-            ss << "  WALLTIME TOTAL    / h     =   " << total << XMPI::endl << XMPI::endl; 
+            ss << "  WALLTIME ELAPSED  / h     =   " << elapsed << XMPI::endl;
+            ss << "  WALLTIME REMAINED / h     =   " << left << XMPI::endl;
+            ss << "  WALLTIME TOTAL    / h     =   " << total << XMPI::endl << XMPI::endl;
             XMPI::cout << ss.str();
         }
         // learn wisdom
         mDomain->learnWisdom(tstep - 1);
-        
-        // assemble phase 2: wait + extract 
+
+        // assemble phase 2: wait + extract
         mDomain->assembleStiff(1);
     }
     ////////////////////////// loop //////////////////////////
@@ -98,6 +98,3 @@ void Newmark::solve(int verbose) const {
         XMPI::cout << mDomain->reportCost();
     }
 }
-
-
-

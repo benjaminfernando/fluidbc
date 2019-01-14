@@ -1,5 +1,5 @@
 // SurfaceRecorder.cpp
-// created by Kuangdai on 27-Nov-2017 
+// created by Kuangdai on 27-Nov-2017
 // recorder for surface wavefield
 
 #include "SurfaceRecorder.h"
@@ -7,8 +7,8 @@
 #include "SurfaceInfo.h"
 #include "XMPI.h"
 
-SurfaceRecorder::SurfaceRecorder(int totalRecordSteps, int recordInterval, 
-    int bufferSize, double srcLat, double srcLon, double srcDep): 
+SurfaceRecorder::SurfaceRecorder(int totalRecordSteps, int recordInterval,
+    int bufferSize, double srcLat, double srcLon, double srcDep):
 mTotalRecordSteps(totalRecordSteps),
 mRecordInterval(recordInterval), mBufferSize(bufferSize),
 mSrcLat(srcLat), mSrcLon(srcLon), mSrcDep(srcDep) {
@@ -49,7 +49,7 @@ void SurfaceRecorder::initialize() {
     std::vector<std::pair<double, int>> minThetaTagAll;
     for (int iproc = 0; iproc < XMPI::nproc(); iproc++) {
         for (int iele = 0; iele < numSurfEleAll[iproc]; iele++) {
-            minThetaTagAll.push_back(std::make_pair(minThetaAll[iproc][iele], 
+            minThetaTagAll.push_back(std::make_pair(minThetaAll[iproc][iele],
                 unsortedTagAll[iproc][iele]));
         }
     }
@@ -62,17 +62,17 @@ void SurfaceRecorder::initialize() {
             mSurfaceInfo[ltag].setGlobalTag(gtag);
         }
     }
-    
+
     // buffer
-    mBufferTime = RColX::Zero(mBufferSize);
+    mBufferTime = RDColX::Zero(mBufferSize);
     for (int iele = 0; iele < numSurfEle; iele++) {
         CMatXX_RM buf;
         mSurfaceInfo[iele].initBuffer(mBufferSize, buf);
         mBufferDisp.push_back(buf);
-    }    
-    
+    }
+
     // IO
-    mIO->initialize(mTotalRecordSteps, mBufferSize, mSurfaceInfo, 
+    mIO->initialize(mTotalRecordSteps, mBufferSize, mSurfaceInfo,
         mSrcLat, mSrcLon, mSrcDep);
 }
 
@@ -80,23 +80,23 @@ void SurfaceRecorder::finalize() {
     mIO->finalize();
 }
 
-void SurfaceRecorder::record(int tstep, Real t) {
+void SurfaceRecorder::record(int tstep, double t) {
     if (tstep % mRecordInterval != 0) {
         return;
     }
-    
+
     // time
     mBufferTime(mBufferLine) = t;
-    
+
     // get disp
     for (int iele = 0; iele < mSurfaceInfo.size(); iele++) {
         // compute from element
         mSurfaceInfo[iele].feedBuffer(mBufferLine, mBufferDisp[iele]);
     }
-    
+
     // increment buffer line
     mBufferLine++;
-    
+
     // dump and clear buffer
     if (mBufferLine == mBufferSize) {
         dumpToFile();
@@ -107,4 +107,3 @@ void SurfaceRecorder::dumpToFile() {
     mIO->dumpToFile(mBufferDisp, mBufferTime, mBufferLine);
     mBufferLine = 0;
 }
-

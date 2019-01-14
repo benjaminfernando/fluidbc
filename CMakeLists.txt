@@ -37,7 +37,7 @@ SET(NPOL 4)
 SET(USE_DOUBLE FALSE)
 
 # use parallel NetCDF or not
-# Modules that require parallel NetCDF: 
+# Modules that require parallel NetCDF:
 # * seismic inversion
 # * wavefield and model visualisation
 SET(USE_PARALLEL_NETCDF FALSE)
@@ -53,7 +53,7 @@ SET(NEED_HDF5_LINK FALSE)
 
 # directory to store FFTW wisdom files
 # Specify any directory that does not require a `sudo` to write.
-# Once set, it is unlikely to be changed. 
+# Once set, it is unlikely to be changed.
 SET(FFTW_WISDOM_DIR $ENV{HOME}/.axisem3d_fftw_wisdom_dir)
 ##################################### EDITABLE #####################################
 
@@ -230,13 +230,13 @@ add_executable(
     src/core/element/material/elastic/3D/Anisotropic3D.cpp
 
     src/core/element/grad/Gradient.cpp
-    
+
     src/core/element/crd/CrdTransTIsoSolid.cpp
     src/core/element/crd/CrdTransTIsoFluid.cpp
     src/core/element/fft/FieldFFT.cpp
     src/core/element/prt/PRT_1D.cpp
     src/core/element/prt/PRT_3D.cpp
-    
+
     src/core/element/Element.cpp
     src/core/element/SolidElement.cpp
     src/core/element/FluidElement.cpp
@@ -295,6 +295,7 @@ add_executable(
 
     src/preloop/source/Source.cpp
     src/preloop/source/Earthquake.cpp
+    src/preloop/source/PressureSource.cpp
     src/preloop/source/PointForce.cpp
     src/preloop/source/NullSource.cpp
     src/preloop/source/stf/STF.cpp

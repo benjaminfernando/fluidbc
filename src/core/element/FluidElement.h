@@ -1,10 +1,11 @@
 // FluidElement.h
-// created by Kuangdai on 29-Mar-2016 
+// created by Kuangdai on 29-Mar-2016
 // base class of fluid elements
 
 #pragma once
 
 #include "Element.h"
+#include "SolverFFTW_N3.h"
 
 class Acoustic;
 class CrdTransTIsoFluid;
@@ -33,49 +34,53 @@ struct FluidResponse {
 
 class FluidElement : public Element {
 public:
-    
-    FluidElement(Gradient *grad, PRT *prt, const std::array<Point *, nPntElem> &points, 
+
+    FluidElement(Gradient *grad, PRT *prt, const std::array<Point *, nPntElem> &points,
         Acoustic *acous);
     ~FluidElement();
-    
+
+    Acoustic * getAcoustic() const {return mAcoustic;};
+
+    bool fluid() const {return true;}
+
     // compute stiffness term
     void computeStiff() const;
-    
+
     // measure cost
     double measure(int count) const;
-    
-    // test stiffness 
+
+    // test stiffness
     void test() const;
-    
+
     // compute Real displacement, used by receiver
-    void computeGroundMotion(Real phi, const RMatPP &weights, RRow3 &u_spz) const; 
-    void computeStrain(Real phi, const RMatPP &weights, RRow6 &strain) const; 
+    void computeGroundMotion(Real phi, const RMatPP &weights, RRow3 &u_spz) const;
+    void computeStrain(Real phi, const RMatPP &weights, RRow6 &strain) const;
     void forceTIso();
-    
+
     // side-wise
-    void feedDispOnSide(int side, CMatXX_RM &buffer, int row) const; 
-    
+    void feedDispOnSide(int side, CMatXX_RM &buffer, int row) const;
+
     // verbose
     std::string verbose() const;
-    
+
 private:
-    
+
     // displ ==> stiff
     void displToStiff() const;
-    
+
     // material
     Acoustic *mAcoustic;
     CrdTransTIsoFluid *mCrdTransTIso;
-    
+
     // flags
     bool mInTIso;
     bool mElem3D;
-    
-//-------------------------- static --------------------------//    
+
+//-------------------------- static --------------------------//
 public:
     // initialize static workspace
     static void initWorkspace(int maxMaxNu);
-    
+
 private:
     // static workspaces
     static FluidResponse sResponse;

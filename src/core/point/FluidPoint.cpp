@@ -22,7 +22,12 @@ FluidPoint::~FluidPoint() {
     delete mMass;
 }
 
-void FluidPoint::updateNewmark(Real dt) {
+void FluidPoint::addToStiff(const CMatX3 &source) {
+    // make sure the length of "source" does not exceed mNu + 1
+    mStiff(0) -= source.sum();
+}
+
+void FluidPoint::updateNewmark(double dt) {
  /*
     //if (!mFluidSurf) {
     //  std::cout<<"Not FS"<<std::endl;
@@ -49,11 +54,11 @@ void FluidPoint::updateNewmark(Real dt) {
     // mask accel (masking must be called twice if mass is 3D)
     maskField(mStiff);
     // update dt
-    Real half_dt = half * dt;
-    Real half_dt_dt = half_dt * dt;
-    mVeloc += half_dt * (mAccel + mStiff);
+    double half_dt = half * dt;
+    double half_dt_dt = half_dt * dt;
+    mVeloc += (Real)half_dt * (mAccel + mStiff);
     mAccel = mStiff;
-    mDispl += dt * mVeloc + half_dt_dt * mAccel;
+    mDispl += (Real)dt * mVeloc + (Real)half_dt_dt * mAccel;
     // zero stiffness for next time step
     mStiff.setZero();
 }

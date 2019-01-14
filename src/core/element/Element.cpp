@@ -1,9 +1,12 @@
 // Element.cpp
-// created by Kuangdai on 27-Mar-2016 
+// created by Kuangdai on 27-Mar-2016
 // base class of AxiSEM3D spectral elements
 
 #include "Element.h"
 #include "Point.h"
+#include "Acoustic.h"
+#include "FieldFFT.h"
+#include "SolverFFTW_N3.h"
 
 #include "Gradient.h"
 #include "PRT.h"
@@ -29,8 +32,49 @@ Element::~Element() {
 }
 
 void Element::addSourceTerm(const arPP_CMatX3 &source) const {
+    arPP_CMatX3 SF_source = source;
+
+    if (fluid()) {
+        const Acoustic *acoust = getAcoustic();
+        RDMatXN K = acoust->getRho();
+
+        vec_ar3_CMatPP source_F = vec_ar3_CMatPP(mMaxNu + 1, zero_ar3_CMatPP);
+        for (int ipol = 0; ipol <= nPol; ipol++) {
+            for (int jpol = 0; jpol <= nPol; jpol++) {
+                int ipnt = ipol * nPntEdge + jpol;
+                for (int alpha = 0; alpha < SF_source[ipnt].rows(); alpha++) {
+                    for (int i = 0; i < 3; i++) {
+                        source_F[alpha][i](ipol, jpol) = SF_source[ipnt](alpha, i);
+                    }
+                }
+            }
+        }
+
+        RMatXN3 &source_P = SolverFFTW_N3::getR2C_RMat(mMaxNr);
+        FieldFFT::transformF2P(source_F, mMaxNr);
+        source_P = SolverFFTW_N3::getC2R_RMat(mMaxNr);
+        for (int alpha = 0; alpha <= mMaxNu; alpha++) {
+            for (int i = 0; i < 3; i++) {
+                for (int ipnt = 0; ipnt < nPE; ipnt++) {
+                    source_P(alpha, i * nPE + ipnt) *= K(alpha, ipnt);
+                }
+            }
+        }
+        FieldFFT::transformP2F(source_F, mMaxNr);
+        for (int i = 0; i < 3; i++) {
+            for (int ipol = 0; ipol <= nPol; ipol++) {
+                for (int jpol = 0; jpol <= nPol; jpol++) {
+                    int ipnt = ipol * nPntEdge + jpol;
+                    for (int alpha = 0; alpha < SF_source[ipnt].rows(); alpha++) {
+                        SF_source[ipnt](alpha, i) = source_F[alpha][i](ipol, jpol);
+                    }
+                }
+            }
+        }
+    }
+
     for (int i = 0; i < nPntElem; i++) {
-        mPoints[i]->addToStiff(source[i]);
+        mPoints[i]->addToStiff(SF_source[i]);
     }
 }
 
@@ -87,4 +131,3 @@ RDMatXX Element::getCoordsOnSide(int side) const {
     }
     return sz;
 }
-

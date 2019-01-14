@@ -1,5 +1,5 @@
 // FluidElement.cpp
-// created by Kuangdai on 29-Mar-2016 
+// created by Kuangdai on 29-Mar-2016
 // base class of fluid elements
 
 #include "FluidElement.h"
@@ -9,27 +9,28 @@
 #include "Acoustic.h"
 #include "CrdTransTIsoFluid.h"
 #include "FieldFFT.h"
+#include "SolverFFTW_N3.h"
 
 #include "MultilevelTimer.h"
 
 FluidElement::FluidElement(Gradient *grad, PRT *prt,
-    const std::array<Point *, nPntElem> &points, 
-    Acoustic *acous): 
+    const std::array<Point *, nPntElem> &points,
+    Acoustic *acous):
 Element(grad, prt, points), mAcoustic(acous), mCrdTransTIso(0) {
     mAcoustic->checkCompatibility(mMaxNr);
     // TISO
     mInTIso = mHasPRT;
     if (mInTIso) {
         mCrdTransTIso = new CrdTransTIsoFluid(formThetaMat());
-    } 
+    }
     // 3D
     bool acous1D = mAcoustic->is1D();
     if (mHasPRT) {
         if (acous1D != mPRT->is1D()) {
             throw std::runtime_error("FluidElement::FluidElement || "
-                "Particle Relabelling and Elasticity are generated in different spaces.");  
+                "Particle Relabelling and Elasticity are generated in different spaces.");
         }
-    } 
+    }
     mElem3D = !acous1D;
 }
 
@@ -39,11 +40,8 @@ FluidElement::~FluidElement() {
         delete mCrdTransTIso;
     }
 }
-    
-void FluidElement::computeStiff() const {
-    // setup static
-    sResponse.setNr(mMaxNr);
-    
+
+void FluidElement::computeGroundMotion(Real phi, const RMatPP &weights, RRow3 &u_spz) const {
     // get displ from points
     int ipnt = 0;
     for (int ipol = 0; ipol <= nPol; ipol++) {
@@ -51,10 +49,61 @@ void FluidElement::computeStiff() const {
             mPoints[ipnt++]->scatterDisplToElement(sResponse.mDispl, ipol, jpol, mMaxNu);
         }
     }
-        
+
+    vec_ar3_CMatPP FluidDisp = vec_ar3_CMatPP(mMaxNu + 1, zero_ar3_CMatPP);
+    RMatXN3 &FluidDisp_r = SolverFFTW_N3::getR2C(mMaxNr); //initialise input for P2F
+
+    mGradient->computeGrad(sResponse.mDispl, FluidDisp, mMaxNu, sResponse.mNyquist); //get gradient of fluid potential (in Fourier)
+    FieldFFT::transformF2P(FluidDisp, mMaxNr); //initialise F2P of FPG
+    FluidDisp_r = SolverFFTW_N3::getC2R_RMat(mMaxNr); //output gradient in physical domain
+
+    RMatXN K = mAcoustic->getRho();//"Rho" = 1/rho [kg/m3] in physical domain
+    for (int alpha = 0; alpha <= mMaxNu; alpha++) {
+       for (int i = 0; i < 3; i++) {
+           for (int ipnt = 0; ipnt < nPE; ipnt++) {
+               FluidDisp_r(alpha, i * nPE + ipnt) *= K(alpha,ipnt);//divide gradient by density (automatically updated in P2F)
+           }
+       }
+    }
+    FieldFFT::transformP2F(FluidDisp, mMaxNr);
+
+    // compute ground motion pointwise
+    u_spz.setZero();
+    for (int ipol = 0; ipol <= nPol; ipol++) {
+        for (int jpol = 0; jpol <= nPol; jpol++) {
+            if (std::abs(weights(ipol, jpol)) < tinyDouble) continue;
+            Real up0 = FluidDisp[0][0](ipol, jpol).real();
+            Real up1 = FluidDisp[0][1](ipol, jpol).real();
+            Real up2 = FluidDisp[0][2](ipol, jpol).real();
+            for (int alpha = 1; alpha <= mMaxNu - (int)(mMaxNr % 2 == 0); alpha++) {
+                Complex expval = two * exp((Real)alpha * phi * ii);
+                up0 += (expval * FluidDisp[alpha][0](ipol, jpol)).real();
+                up1 += (expval * FluidDisp[alpha][1](ipol, jpol)).real();
+                up2 += (expval * FluidDisp[alpha][2](ipol, jpol)).real();
+            }
+
+            u_spz(0) += weights(ipol, jpol) * up0;
+            u_spz(1) += weights(ipol, jpol) * up1;
+            u_spz(2) += weights(ipol, jpol) * up2;
+        }
+    }
+}
+
+void FluidElement::computeStiff() const {
+    // setup static
+    sResponse.setNr(mMaxNr);
+
+    // get displ from points
+    int ipnt = 0;
+    for (int ipol = 0; ipol <= nPol; ipol++) {
+        for (int jpol = 0; jpol <= nPol; jpol++) {
+            mPoints[ipnt++]->scatterDisplToElement(sResponse.mDispl, ipol, jpol, mMaxNu);
+        }
+    }
+
     // compute stiff
     displToStiff();
-    
+
     // set stiff to points
     ipnt = 0;
     for (int ipol = 0; ipol <= nPol; ipol++) {
@@ -72,7 +121,7 @@ double FluidElement::measure(int count) const {
             mPoints[ipnt++]->randomDispl((Real)1e-6);
         }
     }
-    
+
     // measure stiffness
     MyBoostTimer timer;
     timer.start();
@@ -80,7 +129,7 @@ double FluidElement::measure(int count) const {
         computeStiff();
     }
     double elapsed_time = timer.elapsed();
-    
+
     // reset point
     ipnt = 0;
     for (int ipol = 0; ipol <= nPol; ipol++) {
@@ -101,7 +150,7 @@ void FluidElement::test() const {
     int totalDim = (mMaxNu + 1) * nPntElem;
     RMatXX K = RMatXX::Zero(totalDim, totalDim);
     bool axial = this->axial();
-    
+
     for (int alpha = 0; alpha <= mMaxNu; alpha++) {
         if (mMaxNr % 2 == 0 && alpha == mMaxNu) {continue;}
         for (int ipol = 0; ipol <= nPol; ipol++) {
@@ -112,18 +161,18 @@ void FluidElement::test() const {
                 }
                 sResponse.mDispl[alpha](ipol, jpol) = one;
                 if (alpha == 0) {sResponse.mDispl[alpha](ipol, jpol) = two;}
-                
-                // compute stiff 
+
+                // compute stiff
                 displToStiff();
-                
+
                 // positive-definite
                 Real sr = sResponse.mStiff[alpha](ipol, jpol).real();
                 if (sr <= zero) {
                     // add code here to debug
                     throw std::runtime_error("FluidElement::test || "
-                        "Stiffness matrix is not positive definite.");  
+                        "Stiffness matrix is not positive definite.");
                 }
-                    
+
                 // store stiffness
                 int row = alpha * nPntElem + ipol * nPntEdge + jpol;
                 for (int alpha1 = 0; alpha1 <= mMaxNu; alpha1++) {
@@ -138,14 +187,14 @@ void FluidElement::test() const {
                         }
                     }
                 }
-                
-                // restore zero 
+
+                // restore zero
                 sResponse.mDispl[alpha](ipol, jpol) = zero;
             }
         }
     }
-    
-    // test self-adjointness 
+
+    // test self-adjointness
     Real maxK = K.array().abs().maxCoeff();
     Real tole = maxK * tinyReal;
     for (int i = 0; i < totalDim; i++) {
@@ -154,32 +203,33 @@ void FluidElement::test() const {
             if (diff > tole) {
                 // add code here to debug
                 throw std::runtime_error("FluidElement::test || "
-                    "Stiffness matrix is not self-adjoint."); 
+                    "Stiffness matrix is not self-adjoint.");
             }
         }
     }
 }
 
-void FluidElement::computeGroundMotion(Real phi, const RMatPP &weights, RRow3 &u_spz) const {
-    throw std::runtime_error("FluidElement::computeGroundMotion || "
-        "Not implemented."); 
-}
+///
+///void FluidElement::computeGroundMotion(Real phi, const RMatPP &weights, RRow3 &u_spz) const {
+  ///  throw std::runtime_error("FluidElement::computeGroundMotion || "
+    ///    "Not implemented.");
+///}
 
-void FluidElement::computeStrain(Real phi, const RMatPP &weights, RRow6 &strain) const {
-    throw std::runtime_error("FluidElement::computeStrain || "
-        "Not implemented."); 
-}
+///void FluidElement::computeStrain(Real phi, const RMatPP &weights, RRow6 &strain) const {
+  ///  throw std::runtime_error("FluidElement::computeStrain || "
+    ///    "Not implemented.");
+///}
 
 void FluidElement::forceTIso() {
     if (mCrdTransTIso == 0) {
         mCrdTransTIso = new CrdTransTIsoFluid(formThetaMat());
         mInTIso = true;
-    } 
+    }
 }
 
 void FluidElement::feedDispOnSide(int side, CMatXX_RM &buffer, int row) const {
     throw std::runtime_error("FluidElement::getDispOnSide || "
-        "Not implemented."); 
+        "Not implemented.");
 }
 
 std::string FluidElement::verbose() const {
@@ -200,7 +250,7 @@ void FluidElement::displToStiff() const {
     }
     if (mHasPRT) {
         mPRT->sphericalToUndulated(sResponse);
-    }    
+    }
     mAcoustic->strainToStress(sResponse);
     if (mHasPRT) {
         mPRT->undulatedToSpherical(sResponse);
@@ -222,4 +272,3 @@ void FluidElement::initWorkspace(int maxMaxNu) {
     sResponse.mStrain = vec_ar3_CMatPP(maxMaxNu + 1, zero_ar3_CMatPP);
     sResponse.mStress = vec_ar3_CMatPP(maxMaxNu + 1, zero_ar3_CMatPP);
 }
-

@@ -1,5 +1,5 @@
 // Domain.cpp
-// created by Kuangdai on 8-Apr-2016 
+// created by Kuangdai on 8-Apr-2016
 // computational domain
 
 #include "Domain.h"
@@ -83,11 +83,11 @@ void Domain::computeStiff() const {
     #ifdef _MEASURE_TIMELOOP
         mTimerElemts->resume();
     #endif
-    
+
     for (const auto &elem: mElements) {
         elem->computeStiff();
     }
-    
+
     #ifdef _MEASURE_TIMELOOP
         mTimerElemts->stop();
     #endif
@@ -97,12 +97,12 @@ void Domain::applySource(int tstep) const {
     #ifdef _MEASURE_TIMELOOP
         mTimerElemts->resume();
     #endif
-    
+
     Real stf = mSTF->getFactor(tstep);
     for (const auto &source: mSourceTerms) {
         source->apply(stf);
     }
-    
+
     #ifdef _MEASURE_TIMELOOP
         mTimerElemts->stop();
     #endif
@@ -112,7 +112,7 @@ void Domain::assembleStiff(int phase) const {
     #ifdef _MEASURE_TIMELOOP
         mTimerAssemb->resume();
     #endif
-    
+
     if (phase <= 0) {
         // feed buffer
         for (int i = 0; i < mMsgInfo->mNProcComm; i++) {
@@ -122,16 +122,16 @@ void Domain::assembleStiff(int phase) const {
                 mPoints[pTag]->feedBuffer(mMsgBuffer->mBufferSend[i], row);
             }
         }
-        
+
         // send and recv
         for (int i = 0; i < mMsgInfo->mNProcComm; i++) {
             XMPI::isendComplex(mMsgInfo->mIProcComm[i], mMsgBuffer->mBufferSend[i], mMsgInfo->mReqSend[i]);
             XMPI::irecvComplex(mMsgInfo->mIProcComm[i], mMsgBuffer->mBufferRecv[i], mMsgInfo->mReqRecv[i]);
         }
     }
-    
+
     if (phase >= 0) {
-        // extract buffer 
+        // extract buffer
         #ifdef _MEASURE_TIMELOOP
             mTimerAsWait->resume();
         #endif
@@ -139,7 +139,7 @@ void Domain::assembleStiff(int phase) const {
         #ifdef _MEASURE_TIMELOOP
             mTimerAsWait->stop();
         #endif
-        
+
         for (int i = 0; i < mMsgInfo->mNProcComm; i++) {
             int row = 0;
             for (int j = 0; j < mMsgInfo->mNLocalPoints[i]; j++) {
@@ -147,7 +147,7 @@ void Domain::assembleStiff(int phase) const {
                 mPoints[pTag]->extractBuffer(mMsgBuffer->mBufferRecv[i], row);
             }
         }
-        
+
         #ifdef _MEASURE_TIMELOOP
             mTimerAsWait->resume();
         #endif
@@ -156,21 +156,21 @@ void Domain::assembleStiff(int phase) const {
             mTimerAsWait->stop();
         #endif
     }
-    
+
     #ifdef _MEASURE_TIMELOOP
         mTimerAssemb->stop();
     #endif
 }
 
-void Domain::updateNewmark(Real dt) const {
+void Domain::updateNewmark(double dt) const {
     #ifdef _MEASURE_TIMELOOP
         mTimerPoints->resume();
     #endif
-    
+
     for (const auto &point: mPoints) {
         point->updateNewmark(dt);
     }
-    
+
     #ifdef _MEASURE_TIMELOOP
         mTimerPoints->stop();
     #endif
@@ -180,11 +180,11 @@ void Domain::coupleSolidFluid() const {
     #ifdef _MEASURE_TIMELOOP
         mTimerPoints->resume();
     #endif
-    
+
     for (const auto &point: mSFPoints) {
         point->coupleSolidFluid();
     }
-    
+
     #ifdef _MEASURE_TIMELOOP
         mTimerPoints->stop();
     #endif
@@ -204,16 +204,16 @@ void Domain::finalizeRecorders() const {
     }
 }
 
-void Domain::record(int tstep, Real t) const {
+void Domain::record(int tstep, double t) const {
     #ifdef _MEASURE_TIMELOOP
         mTimerOthers->resume();
     #endif
-    
+
     mPointwiseRecorder->record(tstep, t);
     if (mSurfaceRecorder) {
         mSurfaceRecorder->record(tstep, t);
     }
-    
+
     #ifdef _MEASURE_TIMELOOP
         mTimerOthers->stop();
     #endif
@@ -223,12 +223,12 @@ void Domain::dumpLeft() const {
     #ifdef _MEASURE_TIMELOOP
         mTimerOthers->resume();
     #endif
-    
+
     mPointwiseRecorder->dumpToFile();
     if (mSurfaceRecorder) {
         mSurfaceRecorder->dumpToFile();
     }
-    
+
     #ifdef _MEASURE_TIMELOOP
         mTimerOthers->stop();
     #endif
@@ -238,10 +238,10 @@ void Domain::checkStability(double dt, int tstep, double t) const {
     #ifdef _MEASURE_TIMELOOP
         mTimerOthers->resume();
     #endif
-    
+
     bool unstable = false;
     Point *unstable_point = 0;
-    
+
     for (const auto &point: mPoints) {
         if (!point->stable()) {
             unstable = true;
@@ -249,11 +249,11 @@ void Domain::checkStability(double dt, int tstep, double t) const {
             break;
         }
     }
-    
+
     #ifdef _MEASURE_TIMELOOP
         mTimerOthers->stop();
     #endif
-    
+
     if (unstable) {
         const RDCol2 &sz = unstable_point->getCoords() / 1e3;
         double r = sz.norm();
@@ -286,7 +286,7 @@ std::string Domain::verbose() const {
         eles.insert(std::pair<std::string, int>(estr, 0));
         eles.at(estr) += 1;
     }
-    
+
     std::vector<std::map<std::string, int>> all_eles;
     XMPI::gather(eles, all_eles, MPI_INT, false);
     if (XMPI::root()) {
@@ -298,8 +298,8 @@ std::string Domain::verbose() const {
             }
         }
     }
-    
-    // points 
+
+    // points
     int npoint = XMPI::sum((int)mPoints.size());
     std::map<std::string, int> points;
     for (const auto &point: mPoints) {
@@ -307,7 +307,7 @@ std::string Domain::verbose() const {
         points.insert(std::pair<std::string, int>(estr, 0));
         points.at(estr) += 1;
     }
-    
+
     std::vector<std::map<std::string, int>> all_points;
     XMPI::gather(points, all_points, MPI_INT, false);
     if (XMPI::root()) {
@@ -319,7 +319,7 @@ std::string Domain::verbose() const {
             }
         }
     }
-    
+
     std::stringstream ss;
     ss << "\n=================== Computational Domain ===================" << std::endl;
     ss << "  Elements__________________________________________________" << std::endl;
@@ -341,7 +341,7 @@ std::string Domain::verbose() const {
     for (auto it = points.begin(); it != points.end(); it++) {
         ss << "    " << std::setw(width) << std::left << it->first << "   =   " << it->second << std::endl;
     }
-    
+
     ss << "=================== Computational Domain ===================\n" << std::endl;
     return ss.str();
 }
@@ -366,18 +366,18 @@ std::string Domain::reportCost() const {
         ss << std::setw(10) << std::left << costO << std::endl;
         std::vector<std::string> all_s;
         XMPI::gather(ss.str(), all_s, false);
-        
+
         std::string s = "";
         if (XMPI::root()) {
             s += "\n-------------------------------------- MPI COST MEASUREMENTS --------------------------------------\n";
             s += "PROCESSOR    WALLTIME    ELEMENT-WISE    POINT_WISE    MPI_ASSEMBLE    MPI_WAIT    MISCELLANEOUS\n";
             for (int iproc = 0; iproc < XMPI::nproc(); iproc++) {
-                s += all_s[iproc]; 
+                s += all_s[iproc];
             }
             s += "---------------------------------------------------------------------------------------------------\n\n\n";
         }
         return s;
-    #else 
+    #else
         return "";
     #endif
 }
@@ -386,17 +386,17 @@ void Domain::learnWisdom(int tstep) const {
     if (!mLearnPar->mInvoked) {
         return;
     }
-    
+
     #ifdef _MEASURE_TIMELOOP
         mTimerOthers->resume();
     #endif
-    
+
     if (tstep % mLearnPar->mInterval == 0) {
         for (const auto &point: mPoints) {
             point->learnWisdom(mLearnPar->mCutoff);
         }
     }
-    
+
     #ifdef _MEASURE_TIMELOOP
         mTimerOthers->stop();
     #endif
@@ -406,11 +406,11 @@ void Domain::dumpWisdom() const {
     if (!mLearnPar->mInvoked) {
         return;
     }
-    
+
     #ifdef _MEASURE_TIMELOOP
         mTimerOthers->resume();
     #endif
-    
+
     std::vector<double> buffer;
     for (const auto &point: mPoints) {
         if (!pointInPreviousRank(point->getDomainTag())) {
@@ -420,7 +420,7 @@ void Domain::dumpWisdom() const {
             buffer.push_back(point->getNu());
         }
     }
-    
+
     std::vector<std::vector<double>> all_buffer;
     XMPI::gather(buffer, all_buffer, MPI_DOUBLE, false);
     if (XMPI::root()) {
@@ -429,12 +429,12 @@ void Domain::dumpWisdom() const {
         }
         NuWisdom wis;
         for (int i = 0; i < buffer.size() / 4; i++) {
-            wis.insert(buffer[i * 4], buffer[i * 4 + 1], 
+            wis.insert(buffer[i * 4], buffer[i * 4 + 1],
                 round(buffer[i * 4 + 2]), round(buffer[i * 4 + 3]));
         }
         wis.writeToFile(mLearnPar->mFileName);
     }
-    
+
     #ifdef _MEASURE_TIMELOOP
         mTimerOthers->stop();
     #endif
@@ -456,4 +456,3 @@ bool Domain::pointInPreviousRank(int myPointTag) const {
     }
     return false;
 }
-

@@ -1,5 +1,5 @@
 // SolidFluidPoint.cpp
-// created by Kuangdai on 5-Apr-2016 
+// created by Kuangdai on 5-Apr-2016
 // solid-fluid boundary condition
 
 #include "SolidFluidPoint.h"
@@ -9,7 +9,7 @@
 #include "Mass.h"
 #include "MultilevelTimer.h"
 
-SolidFluidPoint::SolidFluidPoint(SolidPoint *sp, FluidPoint *fp, SFCoupling *couple): 
+SolidFluidPoint::SolidFluidPoint(SolidPoint *sp, FluidPoint *fp, SFCoupling *couple):
 mSolidPoint(sp), mFluidPoint(fp), mSFCoupling(couple),
 Point(sp->getNr(), sp->axial(), sp->getCoords()) {
     mSFCoupling->checkCompatibility(mNr);
@@ -24,7 +24,7 @@ SolidFluidPoint::~SolidFluidPoint() {
     delete mSFCoupling;
 }
 
-void SolidFluidPoint::updateNewmark(Real dt) {
+void SolidFluidPoint::updateNewmark(double dt) {
     mSolidPoint->updateNewmark(dt);
     mFluidPoint->updateNewmark(dt);
 }
@@ -49,9 +49,9 @@ void SolidFluidPoint::randomStiff(Real factor, int seed, int max_order) {
 }
 
 std::string SolidFluidPoint::verbose() const {
-    return "SolidFluidPoint$" + mSolidPoint->mMass->verbose() 
+    return "SolidFluidPoint$" + mSolidPoint->mMass->verbose()
         + "$" + mFluidPoint->mMass->verbose() + "$" + mSFCoupling->verbose();
-} 
+}
 
 double SolidFluidPoint::measure(int count) {
     double cost = 0.;
@@ -66,7 +66,7 @@ double SolidFluidPoint::measure(int count) {
 
 void SolidFluidPoint::test() {
     mSolidPoint->test();
-    mFluidPoint->test();    
+    mFluidPoint->test();
 }
 
 int SolidFluidPoint::sizeComm() const {
